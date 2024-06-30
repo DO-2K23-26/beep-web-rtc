@@ -1,6 +1,5 @@
 use std::{
-    collections::HashMap,
-    sync::mpsc::{self, Sender},
+    collections::HashMap, sync::mpsc::{self, Sender} // collections::HashMap, path, sync::mpsc::{self, Sender}
 };
 
 use actix_web::{
@@ -12,6 +11,16 @@ use bytes::Bytes;
 use tracing::{error, info};
 
 use crate::transport::handlers::{SignalingMessage, SignalingProtocolMessage};
+
+use serde::{Deserialize, Serialize};
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+   sub: String,
+   name: String,
+   iat: u64,
+}
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct RTCSessionDescriptionSerializable {
@@ -25,18 +34,54 @@ pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
 }
 
-#[post("/offer/{session}/{endpoint}")]
+#[derive(Debug, Serialize, Deserialize)]
+struct TokenOffer {
+    channelId: u64,
+    userId: u64,
+    iat: u64,
+}
+
+#[post("/offer/{token}")]
 pub async fn handle_offer(
-    path: web::Path<(String, String)>,
+    path: web::Path<String>,
     offer_sdp: web::Json<RTCSessionDescriptionSerializable>,
     media_port_thread_map: Data<HashMap<u16, Sender<SignalingMessage>>>,
 ) -> impl Responder {
+
     let path = path.into_inner();
-    let session_id = u64::from_str_radix(&path.0, 10).unwrap();
-    let endpoint_id = u64::from_str_radix(&path.1, 10).unwrap();
-    let sorted_ports: Vec<u16> = media_port_thread_map.keys().map(|x| *x).collect();
-    let port = sorted_ports[(session_id as usize) % sorted_ports.len()];
+    let token = path.to_string();
+
+    // Create a new validation object
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = false;
+
+    // Decode the token
+    let decoded_token = decode::<TokenOffer>(
+        &token,
+        &DecodingKey::from_secret("G9e1d_eQQQpnbiEAeBa7uqYXwRgtecNL".as_ref()),
+        &validation
+    );
+
+    // Extract the claims before moving decoded_token
+    let decoded_token = match decoded_token {
+        Ok(token_data) => token_data,
+        Err(e) => {
+            error!("Token decoding error: {:?}", e);
+            return HttpResponse::Unauthorized().body("Invalid or expired token");
+        },
+    };
+
+    let user_id = decoded_token.claims.userId;
+    let channel_id = decoded_token.claims.channelId;
+
+    let sorted_ports: Vec<u16> = media_port_thread_map.keys()
+        .map(|x| *x)
+        .collect();
+
+    let port = sorted_ports[(channel_id as usize) % sorted_ports.len()];
+
     let (response_tx, response_rx) = mpsc::channel();
+
     let payload_to_string = serde_json::to_string(&offer_sdp).map_err(|e| {
         error!("Error serializing offer: {}", e);
         HttpResponse::InternalServerError().body("Error serializing offer")
@@ -49,12 +94,14 @@ pub async fn handle_offer(
         }
         Err(r) => return r,
     };
+
     match media_port_thread_map.get(&port) {
         Some(tx) => {
             tx.send(SignalingMessage {
+                user_id,
                 request: SignalingProtocolMessage::Offer {
-                    session_id,
-                    endpoint_id,
+                    channel_id,
+                    user_id,
                     offer_sdp: offer_sdp,
                 },
                 response_tx,
@@ -67,57 +114,58 @@ pub async fn handle_offer(
     };
 
     let response = response_rx.recv().expect("receive answer offer");
+
     let to_send = match response {
         SignalingProtocolMessage::Answer {
-            session_id: _,
-            endpoint_id: _,
+            channel_id: _,
+            user_id: _,
             answer_sdp,
         } => HttpResponse::Ok()
             .content_type("application/json")
             .body(answer_sdp),
         SignalingProtocolMessage::Err {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             reason,
         } => {
             let reason_str = std::str::from_utf8(&reason).unwrap();
             error!(
                 "Error for session {} endpoint {}: {}",
-                session_id, endpoint_id, reason_str
+                channel_id, user_id, reason_str
             );
             HttpResponse::InternalServerError().body(format!(
                 "Error for session {} endpoint {}: {}",
-                session_id, endpoint_id, reason_str
+                channel_id, user_id, reason_str
             ))
         }
         SignalingProtocolMessage::Leave {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
         } => {
-            error!("Session {} endpoint {} left", session_id, endpoint_id);
+            error!("Session {} endpoint {} left", channel_id, user_id);
             return HttpResponse::InternalServerError().body("Session left");
         }
         SignalingProtocolMessage::Offer {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             offer_sdp,
         } => {
             let offer_sdp_str = std::str::from_utf8(&offer_sdp).unwrap();
             error!(
                 "Received offer for session {} endpoint {} while expecting answer with sdp {}",
-                session_id, endpoint_id, offer_sdp_str
+                channel_id, user_id, offer_sdp_str
             );
             return HttpResponse::InternalServerError()
                 .body("Received offer for session endpoint while expecting answer");
         }
 
         SignalingProtocolMessage::Ok {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
         } => {
             error!(
                 "Received Ok for session {} endpoint {} while expecting answer",
-                session_id, endpoint_id
+                channel_id, user_id
             );
             return HttpResponse::InternalServerError()
                 .body("Received Ok for session endpoint while expecting answer");

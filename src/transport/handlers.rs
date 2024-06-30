@@ -11,31 +11,32 @@ use tracing::info;
 
 pub enum SignalingProtocolMessage {
     Ok {
-        session_id: u64,
-        endpoint_id: u64,
+        channel_id: u64,
+        user_id: u64,
     },
     Err {
-        session_id: u64,
-        endpoint_id: u64,
+        channel_id: u64,
+        user_id: u64,
         reason: Bytes,
     },
     Offer {
-        session_id: u64,
-        endpoint_id: u64,
+        channel_id: u64,
+        user_id: u64,
         offer_sdp: Bytes,
     },
     Answer {
-        session_id: u64,
-        endpoint_id: u64,
+        channel_id: u64,
+        user_id: u64,
         answer_sdp: Bytes,
     },
     Leave {
-        session_id: u64,
-        endpoint_id: u64,
+        channel_id: u64,
+        user_id: u64,
     },
 }
 
 pub struct SignalingMessage {
+    pub user_id: u64,
     pub request: SignalingProtocolMessage,
     pub response_tx: Sender<SignalingProtocolMessage>,
 }
@@ -46,43 +47,43 @@ pub fn handle_signaling_message(
 ) -> std::io::Result<()> {
     match signaling_msg.request {
         SignalingProtocolMessage::Offer {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             offer_sdp,
         } => handle_offer_message(
             server_states,
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             offer_sdp,
             signaling_msg.response_tx,
         ),
         SignalingProtocolMessage::Leave {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
         } => handle_leave_message(
             server_states,
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             signaling_msg.response_tx,
         ),
         SignalingProtocolMessage::Ok {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
         }
         | SignalingProtocolMessage::Err {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             reason: _,
         }
         | SignalingProtocolMessage::Answer {
-            session_id,
-            endpoint_id,
+            channel_id,
+            user_id,
             answer_sdp: _,
         } => Ok(signaling_msg
             .response_tx
             .send(SignalingProtocolMessage::Err {
-                session_id,
-                endpoint_id,
+                channel_id,
+                user_id,
                 reason: Bytes::from("Invalid Request"),
             })
             .map_err(|_| {
@@ -96,8 +97,8 @@ pub fn handle_signaling_message(
 
 fn handle_offer_message(
     server_states: &Rc<RefCell<ServerStates>>,
-    session_id: u64,
-    endpoint_id: u64,
+    channel_id: u64,
+    user_id: u64,
     offer: Bytes,
     response_tx: Sender<SignalingProtocolMessage>,
 ) -> std::io::Result<()> {
@@ -113,12 +114,12 @@ fn handle_offer_message(
         };
         info!(
             "handle_offer_message: {}/{}/{}",
-            session_id, endpoint_id, offer_str,
+            channel_id, user_id, offer_str,
         );
         let mut server_states = server_states.borrow_mut();
 
         let offer_sdp = serde_json::from_str::<RTCSessionDescription>(&offer_str)?;
-        let answer = match server_states.accept_offer(session_id, endpoint_id, None, offer_sdp) {
+        let answer = match server_states.accept_offer(channel_id, user_id, None, offer_sdp) {
             Ok(answer) => answer,
             Err(err) => {
                 return Err(Error::new(
@@ -135,8 +136,8 @@ fn handle_offer_message(
     match try_handle() {
         Ok(answer_sdp) => Ok(response_tx
             .send(SignalingProtocolMessage::Answer {
-                session_id,
-                endpoint_id,
+                channel_id,
+                user_id,
                 answer_sdp,
             })
             .map_err(|_| {
@@ -147,8 +148,8 @@ fn handle_offer_message(
             })?),
         Err(err) => Ok(response_tx
             .send(SignalingProtocolMessage::Err {
-                session_id,
-                endpoint_id,
+                channel_id,
+                user_id,
                 reason: Bytes::from(err.to_string()),
             })
             .map_err(|_| {
@@ -162,20 +163,20 @@ fn handle_offer_message(
 
 fn handle_leave_message(
     _server_states: &Rc<RefCell<ServerStates>>,
-    session_id: u64,
-    endpoint_id: u64,
+    channel_id: u64,
+    user_id: u64,
     response_tx: Sender<SignalingProtocolMessage>,
 ) -> std::io::Result<()> {
     let try_handle = || -> std::io::Result<()> {
-        info!("handle_leave_message: {}/{}", session_id, endpoint_id,);
+        info!("handle_leave_message: {}/{}", channel_id, user_id,);
         Ok(())
     };
 
     match try_handle() {
         Ok(_) => Ok(response_tx
             .send(SignalingProtocolMessage::Ok {
-                session_id,
-                endpoint_id,
+                channel_id,
+                user_id,
             })
             .map_err(|_| {
                 Error::new(
@@ -185,8 +186,8 @@ fn handle_leave_message(
             })?),
         Err(err) => Ok(response_tx
             .send(SignalingProtocolMessage::Err {
-                session_id,
-                endpoint_id,
+                channel_id,
+                user_id,
                 reason: Bytes::from(err.to_string()),
             })
             .map_err(|_| {

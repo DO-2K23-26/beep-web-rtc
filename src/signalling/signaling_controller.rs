@@ -8,6 +8,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use bytes::Bytes;
+use sha2::digest::typenum::uint;
 use tracing::{error, info};
 
 use crate::transport::handlers::{SignalingMessage, SignalingProtocolMessage};
@@ -30,10 +31,10 @@ pub async fn health() -> impl Responder {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TokenOffer {
-    channelSn: String,
-    userSn: String,
-    iat: String,
-    exp: String,
+    channelSn: i64,
+    userSn: i64,
+    iat: i64,
+    exp: i64,
 }
 
 #[post("/offer/{token}")]
@@ -67,8 +68,8 @@ pub async fn handle_offer(
     };
 
     //cast in u64
-    let channel_id = decoded_token.claims.channelSn.parse::<u64>().unwrap();
-    let user_id = decoded_token.claims.userSn.parse::<u64>().unwrap();
+    let channel_id = decoded_token.claims.channelSn as u64;
+    let user_id = decoded_token.claims.userSn as u64;
 
     let sorted_ports: Vec<u16> = media_port_thread_map.keys()
         .map(|x| *x)

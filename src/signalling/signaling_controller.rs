@@ -36,9 +36,10 @@ pub async fn health() -> impl Responder {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TokenOffer {
-    channelId: u64,
-    userId: u64,
+    channelSn: u64,
+    userSn: u64,
     iat: u64,
+    exp: u64,
 }
 
 #[post("/offer/{token}")]
@@ -53,7 +54,7 @@ pub async fn handle_offer(
 
     // Create a new validation object
     let mut validation = Validation::new(Algorithm::HS256);
-    validation.validate_exp = false;
+    validation.validate_exp = true;
 
     // Decode the token
     let decoded_token = decode::<TokenOffer>(
@@ -71,8 +72,8 @@ pub async fn handle_offer(
         },
     };
 
-    let user_id = decoded_token.claims.userId;
-    let channel_id = decoded_token.claims.channelId;
+    let user_id = decoded_token.claims.userSn;
+    let channel_id = decoded_token.claims.channelSn;
 
     let sorted_ports: Vec<u16> = media_port_thread_map.keys()
         .map(|x| *x)

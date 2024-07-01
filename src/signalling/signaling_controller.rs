@@ -15,12 +15,6 @@ use crate::transport::handlers::{SignalingMessage, SignalingProtocolMessage};
 use serde::{Deserialize, Serialize};
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-   sub: String,
-   name: String,
-   iat: u64,
-}
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct RTCSessionDescriptionSerializable {
@@ -36,10 +30,10 @@ pub async fn health() -> impl Responder {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TokenOffer {
-    channelSn: u64,
-    userSn: u64,
-    iat: u64,
-    exp: u64,
+    channelSn: String,
+    userSn: String,
+    iat: String,
+    exp: String,
 }
 
 #[post("/offer/{token}")]
@@ -72,8 +66,9 @@ pub async fn handle_offer(
         },
     };
 
-    let user_id = decoded_token.claims.userSn;
-    let channel_id = decoded_token.claims.channelSn;
+    //cast in u64
+    let channel_id = decoded_token.claims.channelSn.parse::<u64>().unwrap();
+    let user_id = decoded_token.claims.userSn.parse::<u64>().unwrap();
 
     let sorted_ports: Vec<u16> = media_port_thread_map.keys()
         .map(|x| *x)

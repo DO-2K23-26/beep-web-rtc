@@ -13,6 +13,19 @@ use tracing::{error, info};
 
 use crate::transport::handlers::{SignalingMessage, SignalingProtocolMessage};
 
+use serde::{Deserialize, Serialize};
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+
+// define the struct of the payload of the token
+#[derive(Debug, Serialize, Deserialize)]
+struct TokenOffer {
+    channelSn: String,
+    userSn: String,
+    iat: i64,
+    exp: i64,
+}
+
+
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct RTCSessionDescriptionSerializable {
     sdp: String,
@@ -25,15 +38,40 @@ pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
 }
 
-#[post("/offer/{session}/{endpoint}")]
+#[post("/offer/{token}")]
 pub async fn handle_offer(
-    path: web::Path<(String, String)>,
+    path: web::Path<String>,
     offer_sdp: web::Json<RTCSessionDescriptionSerializable>,
     media_port_thread_map: Data<HashMap<u16, Sender<SignalingMessage>>>,
 ) -> impl Responder {
+
     let path = path.into_inner();
-    let session_id = u64::from_str_radix(&path.0, 10).unwrap();
-    let endpoint_id = u64::from_str_radix(&path.1, 10).unwrap();
+    let token = path.to_string();
+
+    // Create a new validation object
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
+
+    // Decode the token
+    let decoded_token = decode::<TokenOffer>(
+        &token,
+        &DecodingKey::from_secret("G9e1d_eQQQpnbiEAeBa7uqYXwRgtecNL".as_ref()),
+        &validation
+    );
+
+    // Extract the claims before moving decoded_token
+    let decoded_token = match decoded_token {
+        Ok(token_data) => token_data,
+        Err(e) => {
+            error!("Token decoding error: {:?}", e);
+            return HttpResponse::Unauthorized().body("Invalid or expired token");
+        },
+    };
+
+    //cast in u64
+    let session_id = decoded_token.claims.channelSn.parse::<u64>().unwrap();
+    let endpoint_id = decoded_token.claims.userSn.parse::<u64>().unwrap();
+
     let sorted_ports: Vec<u16> = media_port_thread_map.keys().map(|x| *x).collect();
     let port = sorted_ports[(session_id as usize) % sorted_ports.len()];
     let (response_tx, response_rx) = mpsc::channel();

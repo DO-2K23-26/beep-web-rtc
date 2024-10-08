@@ -23,9 +23,9 @@ spec:
             - name: IP_ENDPOINT
               value: "{{ .Values.image.ipEndpoint }}"
             - name: VALUE_PORT_MIN
-              value: "{{ .Values.image.portUDPmin }}"
+              value: "{{ .Values.udp.port }}"
             - name: VALUE_PORT_MAX
-              value: "{{ .Values.image.portUDPmax }}"
+              value: "{{ .Values.udp.port }}"
             - name: SIGNAL_PORT
               value: "{{ .Values.image.portHTTP }}"
           envFrom:

@@ -1,13 +1,16 @@
 image:
   repository: hugo08/beep-rtc-staging
-  portUDPmin: 5060
-  portUDPmax: 5060
+
 ingress:
   enabled: true
   annotations: { traefik.ingress.kubernetes.io/router.entrypoints: web}
   hosts:
     - host: voice-staging.beep.ovh
       paths: ['/']
+
+udp: 
+  entrypointName: stream
+  port: 5060
 
 ports:
   - 5060

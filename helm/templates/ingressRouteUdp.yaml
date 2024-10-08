@@ -5,8 +5,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   entryPoints:
-    - stream
+    - "{{ .Values.udp.entrypointName }}"
   routes:
     - services:
       - name: {{ printf "%s-service" (include "beep-rtc.fullname" $) }}
-        port: 5060
+        port: {{ $.Values.udp.port }}

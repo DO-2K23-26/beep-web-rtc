@@ -34,3 +34,9 @@ $ cargo run
 ```
 **Production mode features** :
 - Logging in a dedicated file `/var/log/beep-sfu/beep-sfu.log<timestamp>`
+
+## Lint the project
+
+```bash
+$ cargo clippy --all -- --D warnings
+```

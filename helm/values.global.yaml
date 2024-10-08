@@ -1,8 +1,5 @@
 replicaCount: 1
-imagePullSecrets:
-  - name: beep-registry
 image:
-  repository: hugo08/beep-rtc
   pullPolicy: Always
   portHTTP: 8080
   portUDPmin: 5060

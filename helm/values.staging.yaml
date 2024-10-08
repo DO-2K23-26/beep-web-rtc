@@ -1,3 +1,5 @@
+image:
+  repository: hugo08/beep-rtc-staging
 ingress:
   enabled: true
   annotations: { traefik.ingress.kubernetes.io/router.entrypoints: web}

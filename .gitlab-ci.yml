@@ -3,6 +3,8 @@ stages:
   - build
   - deploy
 
+variables:
+  VERSION: $CI_COMMIT_TAG
 
 workflow:
   rules:

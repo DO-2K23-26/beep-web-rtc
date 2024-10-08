@@ -107,17 +107,15 @@ fn read_socket_input(
     server_ip: SocketAddr,
 ) -> Option<TaggedBytesMut> {
     match socket.recv_from(buf) {
-        Ok((n, peer_addr)) => {
-            return Some(TaggedBytesMut {
-                now: Instant::now(),
-                transport: TransportContext {
-                    local_addr: server_ip,
-                    peer_addr,
-                    ecn: None,
-                },
-                message: BytesMut::from(&buf[..n]),
-            });
-        }
+        Ok((n, peer_addr)) => Some(TaggedBytesMut {
+            now: Instant::now(),
+            transport: TransportContext {
+                local_addr: server_ip,
+                peer_addr,
+                ecn: None,
+            },
+            message: BytesMut::from(&buf[..n]),
+        }),
 
         Err(e) => match e.kind() {
             // Expected error for set_read_timeout(). One for windows, one for the rest.

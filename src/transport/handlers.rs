@@ -29,6 +29,7 @@ pub enum SignalingProtocolMessage {
         endpoint_id: u64,
         answer_sdp: Bytes,
     },
+    #[allow(dead_code)]
     Leave {
         session_id: u64,
         endpoint_id: u64,

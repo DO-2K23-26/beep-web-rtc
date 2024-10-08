@@ -19,7 +19,7 @@ pub async fn start(
     let addr = format!("{}:{}", addr, port);
 
     info!("Running in prod mode");
-    return HttpServer::new(move || {
+    HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
             .allow_any_method()
@@ -36,5 +36,5 @@ pub async fn start(
     })
     .bind(addr)?
     .run()
-    .await;
+    .await
 }

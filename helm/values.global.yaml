@@ -1,12 +1,8 @@
 replicaCount: 1
-imagePullSecrets:
-  - name: beep-registry
 image:
-  repository: hugo08/beep-rtc
   pullPolicy: Always
   portHTTP: 8080
-  portUDPmin: 5060
-  portUDPmax: 5060
+
   ipEndpoint: 162.38.112.211
 
 service:
@@ -14,7 +10,6 @@ service:
   port: 80
 
 resources: {}
-ports:
-  - 5060
+
 
 appSecretName: app-secret

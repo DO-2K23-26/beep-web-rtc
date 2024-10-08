@@ -9,6 +9,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[allow(dead_code)]
     pub fn new(
         app_secret: String,
         value_port_min: u16,

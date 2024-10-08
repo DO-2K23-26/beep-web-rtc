@@ -1,6 +1,13 @@
+image:
+  repository: hugo08/beep-rtc
+  portUDPmin: 33434
+  portUDPmax: 33434
 ingress:
   enabled: true
   annotations: { traefik.ingress.kubernetes.io/router.entrypoints: web}
   hosts:
     - host: voice.beep.ovh
       paths: ['/']
+
+ports:
+  - 33434

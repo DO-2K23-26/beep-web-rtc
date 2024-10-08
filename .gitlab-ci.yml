@@ -24,7 +24,7 @@ before_script:
 
 lint:
   stage: test
-  image: rust:1.81-slim
+  image: rust:1.81
   script:
     - rustup component add clippy
     - cargo clippy --all -- --D warnings

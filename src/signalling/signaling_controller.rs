@@ -47,9 +47,9 @@ pub async fn handle_offer(
     };
 
     //cast in u64
-    let session_id = decoded_token.channelSn.parse::<u64>().unwrap();
-    let endpoint_id = decoded_token.userSn.parse::<u64>().unwrap();
-
+    let session_id = decoded_token.channel_sn.parse::<u64>().unwrap();
+    let endpoint_id = decoded_token.user_sn.parse::<u64>().unwrap();
+    #[allow(clippy::map_clone)]
     let sorted_ports: Vec<u16> = media_port_thread_map.keys().map(|x| *x).collect();
     let port = sorted_ports[(session_id as usize) % sorted_ports.len()];
     let (response_tx, response_rx) = mpsc::channel();

@@ -92,8 +92,8 @@ async fn main() -> std::io::Result<()> {
     .await?;
 
     info!("Press Ctrl-C to stop");
-    std::thread::spawn(move || {
-        let _ = signal::ctrl_c();
+    tokio::spawn(async move {
+        let _ = signal::ctrl_c().await;
         stop_tx.send(()).unwrap();
     });
 

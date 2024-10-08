@@ -20,7 +20,7 @@ impl DecodeService {
 
         // Decode the token
         let decoded_token = decode::<TokenOffer>(
-            &token,
+            token,
             &DecodingKey::from_secret(self.app_secret.as_ref()),
             &validation,
         );

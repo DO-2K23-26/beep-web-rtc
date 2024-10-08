@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   entryPoints:
-    - streaming
+    - stream
   routes:
     - services:
       - name: {{ printf "%s-service" (include "beep-rtc.fullname" $) }}

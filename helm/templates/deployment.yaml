@@ -16,12 +16,21 @@ spec:
     spec:
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
-#      hostNetwork: true
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          command: ["/bin/server"]
-          args: ["-d", "--level", "info", "--media-port-min", "{{.Values.image.portUDPmin}}", "--media-port-max", "{{.Values.image.portUDPmax}}", "--host", "0.0.0.0", "--ip-endpoint", "162.38.112.138"]
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+          env:
+            - name: IP_ENDPOINT
+              value: "{{ .Values.image.ipEndpoint }}"
+            - name: VALUE_PORT_MIN
+              value: "{{ .Values.image.portUDPmin }}"
+            - name: VALUE_PORT_MAX
+              value: "{{ .Values.image.portUDPmax }}"
+            - name: SIGNAL_PORT
+              value: "{{ .Values.image.portHTTP }}"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.appSecretName }}            
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

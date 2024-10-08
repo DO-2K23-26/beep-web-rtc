@@ -11,20 +11,10 @@ use actix_web::{
 use bytes::Bytes;
 use tracing::{error, info};
 
-use crate::transport::handlers::{SignalingMessage, SignalingProtocolMessage};
-
-use serde::{Deserialize, Serialize};
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
-
-// define the struct of the payload of the token
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenOffer {
-    channelSn: String,
-    userSn: String,
-    iat: i64,
-    exp: i64,
-}
-
+use crate::{
+    middleware::verify_jwt::DecodeService,
+    transport::handlers::{SignalingMessage, SignalingProtocolMessage},
+};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct RTCSessionDescriptionSerializable {
@@ -43,34 +33,22 @@ pub async fn handle_offer(
     path: web::Path<String>,
     offer_sdp: web::Json<RTCSessionDescriptionSerializable>,
     media_port_thread_map: Data<HashMap<u16, Sender<SignalingMessage>>>,
+    decode_service: Data<DecodeService>,
 ) -> impl Responder {
-
     let path = path.into_inner();
     let token = path.to_string();
 
-    // Create a new validation object
-    let mut validation = Validation::new(Algorithm::HS256);
-    validation.validate_exp = true;
-
-    // Decode the token
-    let decoded_token = decode::<TokenOffer>(
-        &token,
-        &DecodingKey::from_secret("G9e1d_eQQQpnbiEAeBa7uqYXwRgtecNL".as_ref()),
-        &validation
-    );
-
-    // Extract the claims before moving decoded_token
-    let decoded_token = match decoded_token {
-        Ok(token_data) => token_data,
+    let decoded_token = match decode_service.decode_token(&token) {
+        Ok(token) => token,
         Err(e) => {
-            error!("Token decoding error: {:?}", e);
-            return HttpResponse::Unauthorized().body("Invalid or expired token");
-        },
+            error!("Error decoding token: {}", e);
+            return HttpResponse::InternalServerError().body("Error decoding token");
+        }
     };
 
     //cast in u64
-    let session_id = decoded_token.claims.channelSn.parse::<u64>().unwrap();
-    let endpoint_id = decoded_token.claims.userSn.parse::<u64>().unwrap();
+    let session_id = decoded_token.channelSn.parse::<u64>().unwrap();
+    let endpoint_id = decoded_token.userSn.parse::<u64>().unwrap();
 
     let sorted_ports: Vec<u16> = media_port_thread_map.keys().map(|x| *x).collect();
     let port = sorted_ports[(session_id as usize) % sorted_ports.len()];
@@ -93,7 +71,7 @@ pub async fn handle_offer(
                 request: SignalingProtocolMessage::Offer {
                     session_id,
                     endpoint_id,
-                    offer_sdp: offer_sdp,
+                    offer_sdp,
                 },
                 response_tx,
             })

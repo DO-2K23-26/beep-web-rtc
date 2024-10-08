@@ -1,5 +1,4 @@
 use bytes::BytesMut;
-use log::error;
 use retty::channel::{InboundPipeline, Pipeline};
 use retty::transport::{TaggedBytesMut, TransportContext};
 use sfu::{
@@ -8,13 +7,13 @@ use sfu::{
 };
 use std::cell::RefCell;
 use std::io::ErrorKind;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::transport::handlers::handle_signaling_message;
 
@@ -87,10 +86,7 @@ pub fn sync_run(
     }
     pipeline.transport_inactive();
 
-    info!(
-        "media server on {} is gracefully down",
-        server_ip
-    );
+    info!("media server on {} is gracefully down", server_ip);
     Ok(())
 }
 
@@ -105,7 +101,11 @@ fn write_socket_output(
     Ok(())
 }
 
-fn read_socket_input(socket: &UdpSocket, buf: &mut [u8], server_ip: SocketAddr) -> Option<TaggedBytesMut> {
+fn read_socket_input(
+    socket: &UdpSocket,
+    buf: &mut [u8],
+    server_ip: SocketAddr,
+) -> Option<TaggedBytesMut> {
     match socket.recv_from(buf) {
         Ok((n, peer_addr)) => {
             return Some(TaggedBytesMut {

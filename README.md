@@ -1,38 +1,28 @@
 # Beep SFU server
 Beep SFU is an implementation of a SFU server for the messaging app Beep.
-## CLI Documentation : 
+## Env
+
+```.env
+APP_KEY=123455QSDF // Corresponding to the app the api is using to sign jwt
+VALUE_PORT_MIN=3478 // Range of port used for udp and sfu
+VALUE_PORT_MAX=3495
+SIGNAL_PORT=8080 // Http port to get request from clients
+IP_ENDPOINT=0.0.0.0 // Prefer to use the Ip you are running your servers on 
 ```
-Usage: beep-sfu [OPTIONS]
-
-Options:
-      --dev
-
-      --host <HOST>
-          [default: 127.0.0.1]
-  -s, --signal-port <SIGNAL_PORT>
-          [default: 8080]
-      --media-port-min <MEDIA_PORT_MIN>
-          [default: 3478]
-      --media-port-max <MEDIA_PORT_MAX>
-          [default: 3479]
-  -e, --env <ENV>
-          [default: prod]
-  -d, --debug
-
-  -l, --level <LEVEL>
-          [default: info] [possible values: error, warn, info, debug, trace] #not working yet
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-
-Example for running in production with 10 workers :
-    beep-sfu --media-port-min 3478 --media-port-max 3588 --env prod
+To run from localhost:
+```bash
+export RUST_LOG=debug &&
+export APP_KEY=G9e1d_eQQQpnbiEAeBa7uqYXwRgtecNL &&
+export VALUE_PORT_MIN=3478 &&
+export VALUE_PORT_MAX=3479 &&
+export SIGNAL_PORT=8080 &&
+export IP_ENDPOINT=127.0.0.1
 ```
+
 ## How to run it ?
 ### Dev mode
 ```
-cargo run -- -env dev
+cargo run
 ```
 **Dev mode features** :
 - Logging in stdout

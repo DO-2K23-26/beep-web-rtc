@@ -118,6 +118,8 @@ fn handle_offer_message(
         let mut server_states = server_states.borrow_mut();
 
         let offer_sdp = serde_json::from_str::<RTCSessionDescription>(&offer_str)?;
+        info!("parsed offer sdp - sdp: {:?}", &offer_sdp.sdp);
+        info!("parsed offer sdp - type: {:?}", offer_sdp.sdp_type);
         let answer = match server_states.accept_offer(session_id, endpoint_id, None, offer_sdp) {
             Ok(answer) => answer,
             Err(err) => {
@@ -128,6 +130,7 @@ fn handle_offer_message(
             }
         };
         let answer_str = serde_json::to_string(&answer)?;
+
         info!("generate answer sdp: {}", answer_str);
         Ok(Bytes::from(answer_str))
     };

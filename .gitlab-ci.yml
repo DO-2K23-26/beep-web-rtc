@@ -24,7 +24,7 @@ before_script:
 
 lint:
   stage: test
-  image: rust:1.81-apline
+  image: rust:1.81-slim
   script:
     - cargo clippy --all -- --D warnings
 

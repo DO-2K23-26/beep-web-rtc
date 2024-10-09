@@ -9,8 +9,8 @@ ingress:
       paths: ['/']
 
 udp: 
-  entrypointName: stream1
-  port: 33434
+  entrypointName: stream
+  port: 5060
 
 ports:
-  - 33434
+  - 5060

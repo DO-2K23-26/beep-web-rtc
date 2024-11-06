@@ -107,12 +107,12 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def init([id, channel, peer_ids]) do
-    Logger.debug("Starting new peer #{id}")
+    Logger.info("Starting new peer #{id}")
     ice_port_range = Application.fetch_env!(:webrtclixir, :ice_port_range)
     pc_opts = @opts ++ [ice_port_range: ice_port_range]
     {:ok, pc} = PeerConnection.start_link(pc_opts)
     Process.monitor(pc)
-    Logger.debug("Starting peer connection #{inspect(pc)}")
+    Logger.info("Starting peer connection #{inspect(pc)}")
 
     Process.link(channel)
 
@@ -131,9 +131,9 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_continue({:initial_offer, peer_ids}, %{pc: pc} = state) do
-    Logger.debug("Creating initial SDP offer for #{state.id}")
+    Logger.info("Creating initial SDP offer for #{state.id}")
 
-    outbound_tracks = setup_transceivers(pc, peer_ids)
+    outbound_tracks = setup_transceivers(pc, peer_ids, state)
 
     state = send_offer(state)
 
@@ -143,7 +143,7 @@ defmodule Webrtclixir.Peer do
   @impl true
   def handle_call({:apply_sdp_answer, answer_sdp}, _from, %{pc: pc} = state) do
     answer = %SessionDescription{type: :answer, sdp: answer_sdp}
-    Logger.debug("Applying SDP answer for #{state.id}:\n#{answer.sdp}")
+    Logger.info("Applying SDP answer for #{state.id}:\n#{answer.sdp}")
 
     state =
       case PeerConnection.set_remote_description(pc, answer) do
@@ -185,7 +185,7 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_cast({:add_subscriber, peer, spec}, state) do
-    Logger.debug("Peer #{state.id} received subscribe request from peer #{peer}")
+    Logger.info("Peer #{state.id} received subscribe request from peer #{peer}")
 
     {:noreply, put_in(state.peer_tracks[peer], spec)}
   end
@@ -198,7 +198,7 @@ defmodule Webrtclixir.Peer do
   @impl true
   def handle_cast({:peer_added, peer}, %{pc: pc} = state) do
     if PeerConnection.get_signaling_state(pc) == :have_local_offer do
-      Logger.debug("Peer #{state.id} scheduled adding of #{peer} after receiving SDP answer")
+      Logger.info("Peer #{state.id} scheduled adding of #{peer} after receiving SDP answer")
       pending_peers = MapSet.put(state.pending_peers, peer)
 
       {:noreply, %{state | pending_peers: pending_peers}}
@@ -210,7 +210,7 @@ defmodule Webrtclixir.Peer do
   @impl true
   def handle_cast({:peer_removed, peer}, %{pc: pc} = state) do
     if PeerConnection.get_signaling_state(pc) == :have_local_offer do
-      Logger.debug("Peer #{state.id} scheduled removal of #{peer} after receiving SDP answer")
+      Logger.info("Peer #{state.id} scheduled removal of #{peer} after receiving SDP answer")
 
       pending_peers =
         if MapSet.member?(state.pending_peers, peer),
@@ -237,7 +237,7 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_info({:ex_webrtc, pc, {:connection_state_change, :connected}}, %{pc: pc} = state) do
-    Logger.debug("Peer #{state.id} connected")
+    Logger.info("Peer #{state.id} connected")
     :ok = Room.mark_ready(state.id)
 
     {:noreply, state}
@@ -277,7 +277,7 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_info({:ex_webrtc, pc, {:track, track}}, %{pc: pc} = state) do
-    Logger.debug("Peer #{state.id} added remote #{track.kind} track #{track.id}")
+    Logger.info("Peer #{state.id} added remote #{track.kind} track #{track.id}")
 
     state = put_in(state.inbound_tracks[track.kind], track.id)
 
@@ -295,23 +295,23 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_info(msg, state) do
-    Logger.debug("Ignoring unknown message: #{inspect(msg)}")
+    Logger.info("Ignoring unknown message: #{inspect(msg)}")
     {:noreply, state}
   end
 
-  defp setup_transceivers(pc, peer_ids) do
+  defp setup_transceivers(pc, peer_ids, state) do
     # Inbound tracks
     {:ok, _tr} = PeerConnection.add_transceiver(pc, :video, direction: :recvonly)
     {:ok, _tr} = PeerConnection.add_transceiver(pc, :audio, direction: :recvonly)
 
     # Outbound tracks
     Map.new(peer_ids, fn id ->
-      {id, add_outbound_track_pair(pc)}
+      {id, add_outbound_track_pair(pc, id, state)}
     end)
   end
 
-  defp add_outbound_track_pair(pc) do
-    stream_id = MediaStreamTrack.generate_stream_id()
+  defp add_outbound_track_pair(pc, id, state) do
+    stream_id = id
     vt = MediaStreamTrack.new(:video, [stream_id])
     at = MediaStreamTrack.new(:audio, [stream_id])
 
@@ -323,6 +323,9 @@ defmodule Webrtclixir.Peer do
 
     transceivers = %{video: video_tr.id, audio: audio_tr.id}
 
+    Logger.info("broadcasting #{state.id} added remote track #{vt.id}")
+    send(state.channel, %{id: id, video: Integer.to_string(vt.id), audio: Integer.to_string(at.id)})
+
     %{
       stream: stream_id,
       video: vt.id,
@@ -333,14 +336,14 @@ defmodule Webrtclixir.Peer do
   end
 
   defp add_peer(state, peer) do
-    Logger.debug("Peer #{state.id} preparing to receive media from #{peer}")
-    tracks = add_outbound_track_pair(state.pc)
+    Logger.info("Peer #{state.id} preparing to receive media from #{peer}")
+    tracks = add_outbound_track_pair(state.pc, peer, state)
 
     put_in(state.outbound_tracks[peer], tracks)
   end
 
   defp remove_peer(state, peer) do
-    Logger.debug("Peer #{state.id} removing outbound tracks corresponding to peer #{peer}")
+    Logger.info("Peer #{state.id} removing outbound tracks corresponding to peer #{peer}")
 
     {_, state} = pop_in(state.peer_tracks[peer])
     {spec, state} = pop_in(state.outbound_tracks[peer])
@@ -386,7 +389,7 @@ defmodule Webrtclixir.Peer do
 
   defp send_offer(%{pc: pc} = state) do
     {:ok, offer} = PeerConnection.create_offer(pc)
-    Logger.debug("Sending SDP offer for #{state.id}:\n#{offer.sdp}")
+    Logger.info("Sending SDP offer for #{state.id}:\n#{offer.sdp}")
 
     :ok = PeerConnection.set_local_description(pc, offer)
     :ok = PeerChannel.send_offer(state.channel, offer.sdp)

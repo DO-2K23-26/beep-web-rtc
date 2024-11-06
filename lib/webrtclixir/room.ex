@@ -16,9 +16,9 @@ defmodule Webrtclixir.Room do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
-  @spec add_peer(pid()) :: {:ok, Peer.id()} | {:error, :peer_limit_reached}
-  def add_peer(channel_pid) do
-    GenServer.call(__MODULE__, {:add_peer, channel_pid})
+  @spec add_peer(pid(), Peer.id()) :: {:ok, Peer.id()} | {:error, :peer_limit_reached}
+  def add_peer(channel_pid, id) do
+    GenServer.call(__MODULE__, {:add_peer, channel_pid, id})
   end
 
   @spec mark_ready(Peer.id()) :: :ok
@@ -38,15 +38,14 @@ defmodule Webrtclixir.Room do
   end
 
   @impl true
-  def handle_call({:add_peer, _channel_pid}, _from, state)
+  def handle_call({:add_peer, _channel_pid, _id}, _from, state)
       when map_size(state.pending_peers) + map_size(state.peers) == @peer_limit do
     Logger.warning("Unable to add new peer: reached peer limit (#{@peer_limit})")
     {:reply, {:error, :peer_limit_reached}, state}
   end
 
   @impl true
-  def handle_call({:add_peer, channel_pid}, _from, state) do
-    id = generate_id()
+  def handle_call({:add_peer, channel_pid, id}, _from, state) do
     Logger.info("New peer #{id} added")
     peer_ids = Map.keys(state.peers)
 
@@ -79,7 +78,7 @@ defmodule Webrtclixir.Room do
 
   @impl true
   def handle_call({:mark_ready, id, _peer_ids}, _from, state) do
-    Logger.debug("Peer #{id} was already marked as ready, ignoring")
+    Logger.info("Peer #{id} was already marked as ready, ignoring")
 
     {:reply, :ok, state}
   end

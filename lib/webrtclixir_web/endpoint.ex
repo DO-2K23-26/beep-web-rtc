@@ -11,7 +11,7 @@ defmodule WebrtclixirWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  socket "/socket", WebrtclixirWeb.UserSocket,
+  socket "/socket/:channel_id", WebrtclixirWeb.UserSocket,
     websocket: true,
     longpoll: false
 

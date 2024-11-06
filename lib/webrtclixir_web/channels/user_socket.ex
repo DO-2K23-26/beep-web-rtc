@@ -6,6 +6,7 @@ defmodule WebrtclixirWeb.UserSocket do
 
   @impl true
   def connect(_params, socket, _connect_info) do
+    #Logger.info("socket params #{_params}")
     {:ok, assign(socket, :user_id, generate_id())}
   end
 

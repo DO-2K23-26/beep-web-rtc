@@ -1,40 +1,84 @@
-ARG BINARY_NAME_DEFAULT=beep-sfu
+# Find eligible builder and runner images on Docker Hub. We use Ubuntu/Debian
+# instead of Alpine to avoid DNS resolution issues in production.
+#
+# https://hub.docker.com/r/hexpm/elixir/tags?page=1&name=ubuntu
+# https://hub.docker.com/_/ubuntu?tab=tags
+#
+# This file is based on these images:
+#
+#   - https://hub.docker.com/r/hexpm/elixir/tags - for the build image
+#   - https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye-20231009-slim - for the release image
+#   - https://pkgs.org/ - resource for finding needed packages
+#   - Ex: hexpm/elixir:1.16.0-erlang-26.2.1-debian-bullseye-20231009-slim
+#
+ARG ELIXIR_VERSION=1.17.2
+ARG OTP_VERSION=27.0.1
+ARG DEBIAN_VERSION=bookworm-20240701-slim
 
-FROM clux/muslrust:stable as builder
-RUN groupadd -g 10001 -r dockergrp && useradd -r -g dockergrp -u 10001 dockeruser
-ARG BINARY_NAME_DEFAULT
-ENV BINARY_NAME=$BINARY_NAME_DEFAULT
-# Build the project with target x86_64-unknown-linux-musl
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
-# Build dummy main with the project's Cargo lock and toml
-# This is a docker trick in order to avoid downloading and building 
-# dependencies when lock and toml not is modified.
-COPY Cargo.lock .
-COPY Cargo.toml .
-RUN mkdir src \
-    && echo "fn main() {print!(\"Dummy main\");} // dummy file" > src/main.rs
-RUN set -x && cargo build --target x86_64-unknown-linux-musl --release
-RUN ["/bin/bash", "-c", "set -x && rm target/x86_64-unknown-linux-musl/release/deps/${BINARY_NAME//-/_}*"]
+FROM ${BUILDER_IMAGE} AS builder
 
-# Now add the rest of the project and build the real main
-COPY src ./src
-RUN set -x && cargo build --target x86_64-unknown-linux-musl --release
-RUN mkdir -p /build-out
-RUN set -x && cp target/x86_64-unknown-linux-musl/release/"$BINARY_NAME" /build-out/
+# install build dependencies
+RUN apt-get update -y && apt-get install -y build-essential git pkg-config libssl-dev \
+    && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# Create a minimal docker image 
-FROM scratch
+# prepare build dir
+WORKDIR /app
 
-COPY --from=0 /etc/passwd /etc/passwd
-USER dockeruser
+# install hex + rebar
+RUN mix local.hex --force && \
+    mix local.rebar --force
 
-ARG BINARY_NAME_DEFAULT
-ENV BINARY_NAME=$BINARY_NAME_DEFAULT
+# set build ENV
+ENV MIX_ENV="prod"
 
-ENV RUST_LOG=debug
-COPY --from=builder /build-out/$BINARY_NAME /
+# install mix dependencies
+COPY mix.exs mix.lock ./
+RUN mix deps.get --only $MIX_ENV
+RUN mkdir config
 
-# Start with an execution list (there is no sh in a scratch image)
-# No shell => no variable expansion, |, <, >, etc 
-# Hard coded start command
-CMD ["/beep-sfu"]
+# copy compile-time config files before we compile dependencies
+# to ensure any relevant config change will trigger the dependencies
+# to be re-compiled.
+COPY config/config.exs config/${MIX_ENV}.exs config/
+RUN mix deps.compile
+
+COPY lib lib
+
+# Compile the release
+RUN mix compile
+
+# Changes to config/runtime.exs don't require recompiling the code
+COPY config/runtime.exs config/
+
+RUN mix release
+
+# start a new build stage so that the final image will only contain
+# the compiled release and other runtime necessities
+FROM ${RUNNER_IMAGE}
+
+RUN apt-get update -y && \
+  apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates tini inetutils-ping \
+  && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# Set the locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+WORKDIR "/app"
+RUN chown nobody /app
+
+# set runner ENV
+ENV MIX_ENV="prod"
+
+# Only copy the final release from the build stage
+COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/webrtclixir ./
+
+USER nobody
+
+ENTRYPOINT ["tini", "--", "/app/bin/webrtclixir", "start"]

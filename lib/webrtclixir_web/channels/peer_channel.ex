@@ -30,11 +30,20 @@ defmodule WebrtclixirWeb.PeerChannel do
   end
 
   @impl true
+  def join("peer:signalling-" <> channel_id, %{"in" => on, "id" => id}, socket) when on == :false do
+    Logger.error("new watcher #{id}}")
+    pid = self()
+    send(pid, :after_join_watcher)
+    {:ok, assign(socket, peer: id, channel: channel_id)}
+  end
+
+  @impl true
   def join("peer:signalling-" <> channel_id, payload, socket) do
+    Logger.error("Joining #{payload["in"]}")
     pid = self()
     send(pid, :after_join)
     case Room.add_peer(pid, payload["id"]) do
-      {:ok, id} -> {:ok, assign(socket, peer: id, channel: channel_id)}
+      {:ok, id} -> {:ok, assign(socket, peer: id, channel: channel_id, username: payload["username"])}
       {:error, _reason} = error -> error
     end
   end
@@ -72,15 +81,24 @@ defmodule WebrtclixirWeb.PeerChannel do
 
   @impl true
   def handle_info(:after_join, socket) do
-    {:ok, _ref} = Presence.track(socket, socket.assigns.peer, %{user: %{id: socket.assigns.peer, audio: nil, video: nil, channel: socket.assigns.channel}})
+    Logger.info("adding to streamers #{socket.assigns.peer}")
+    {:ok, _ref} = Presence.track(socket, socket.assigns.peer, %{user: %{id: socket.assigns.peer, audio: nil, video: nil, channel: socket.assigns.channel, username: socket.assigns.username}})
+    push(socket, "presence_state", Presence.list(socket))
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info(:after_join_watcher, socket) do
+    Logger.info("adding to watcher #{socket.assigns.peer}")
+    {:ok, _ref} = Presence.track(socket, socket.assigns.peer, %{user: %{watcher: true}})
     push(socket, "presence_state", Presence.list(socket))
     {:noreply, socket}
   end
 
   @impl true
   def handle_info(track, socket) do
-    Logger.info("adding to presence #{track.id}")
-    {:ok, _ref} = Presence.update(socket, socket.assigns.peer, %{user: Map.put(track, :channel, socket.assigns.channel)})
+    Logger.warning("adding track to #{socket.assigns.peer}")
+    {:ok, _ref} = Presence.update(socket, socket.assigns.peer, %{user: %{channel: socket.assigns.channel, username: socket.assigns.username, id: socket.assigns.peer, outbounds: track}})
     push(socket, "presence_state", Presence.list(socket))
     {:noreply, socket}
   end

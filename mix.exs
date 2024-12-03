@@ -19,7 +19,7 @@ defmodule Webrtclixir.MixProject do
   def application do
     [
       mod: {Webrtclixir.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end
 
@@ -42,8 +42,8 @@ defmodule Webrtclixir.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:ex_webrtc, "~> 0.5.0"},
-      {:ex_webrtc_dashboard, "~> 0.5.0"}
+      {:ex_webrtc, "~> 0.6.3"},
+      {:ex_webrtc_dashboard, "~> 0.6.0"}
     ]
   end
 

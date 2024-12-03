@@ -67,7 +67,6 @@ defmodule Webrtclixir.Peer do
   ]
 
   @opts [
-    ice_servers: [],
     audio_codecs: @audio_codecs,
     video_codecs: @video_codecs
   ]
@@ -143,7 +142,7 @@ defmodule Webrtclixir.Peer do
   @impl true
   def handle_call({:apply_sdp_answer, answer_sdp}, _from, %{pc: pc} = state) do
     answer = %SessionDescription{type: :answer, sdp: answer_sdp}
-    Logger.info("Applying SDP answer for #{state.id}:\n#{answer.sdp}")
+    #Logger.info("Applying SDP answer for #{state.id}:\n#{answer.sdp}")
 
     state =
       case PeerConnection.set_remote_description(pc, answer) do
@@ -167,9 +166,16 @@ defmodule Webrtclixir.Peer do
       |> Jason.decode!()
       |> ICECandidate.from_json()
 
+    Logger.info("receiving adding_candidate #{inspect(candidate)}")
     :ok = PeerConnection.add_ice_candidate(pc, candidate)
 
     {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call({:ok, peer}, _from, _state) do
+    Logger.info("unknown messave #{inspect(peer)}")
+    {:noreply}
   end
 
   @impl true
@@ -224,12 +230,19 @@ defmodule Webrtclixir.Peer do
   end
 
   @impl true
+  def handle_cast({:ok, peer}, _state) do
+    Logger.info("unknown messave #{inspect(peer)}")
+    {:noreply}
+  end
+
+  @impl true
   def handle_info({:ex_webrtc, pc, {:ice_candidate, candidate}}, %{pc: pc} = state) do
     body =
       candidate
       |> ICECandidate.to_json()
       |> Jason.encode!()
 
+    Logger.info("receiving candidate #{inspect(body)}")
     :ok = PeerChannel.send_candidate(state.channel, body)
 
     {:noreply, state}
@@ -285,6 +298,12 @@ defmodule Webrtclixir.Peer do
   end
 
   @impl true
+  def handle_info({:ok, peer}, _state) do
+    Logger.info("unknown messave #{inspect(peer)}")
+    {:noreply}
+  end
+
+  @impl true
   def handle_info({:DOWN, _ref, :process, pc, reason}, %{pc: pc} = state) do
     Logger.warning(
       "Peer #{state.id} shutting down: peer connection process #{inspect(pc)} terminated with reason #{inspect(reason)}"
@@ -322,9 +341,6 @@ defmodule Webrtclixir.Peer do
     :ok = PeerConnection.replace_track(pc, audio_tr.sender.id, at)
 
     transceivers = %{video: video_tr.id, audio: audio_tr.id}
-
-    Logger.info("broadcasting #{state.id} added remote track #{vt.id}")
-    send(state.channel, %{id: id, video: Integer.to_string(vt.id), audio: Integer.to_string(at.id)})
 
     %{
       stream: stream_id,
@@ -367,7 +383,8 @@ defmodule Webrtclixir.Peer do
 
         {peer, %{spec | subscribed?: true}}
       end)
-
+    tracks_for_sending = prepare_outbound_tracks_for_sending(outbound_tracks)
+    send(state.channel, tracks_for_sending)
     %{state | outbound_tracks: outbound_tracks}
   end
 
@@ -389,7 +406,7 @@ defmodule Webrtclixir.Peer do
 
   defp send_offer(%{pc: pc} = state) do
     {:ok, offer} = PeerConnection.create_offer(pc)
-    Logger.info("Sending SDP offer for #{state.id}:\n#{offer.sdp}")
+    #Logger.info("Sending SDP offer for #{state.id}:\n#{offer.sdp}")
 
     :ok = PeerConnection.set_local_description(pc, offer)
     :ok = PeerChannel.send_offer(state.channel, offer.sdp)
@@ -406,4 +423,17 @@ defmodule Webrtclixir.Peer do
 
     :ok
   end
+
+  defp prepare_outbound_tracks_for_sending(outbound_tracks) do
+    Map.new(outbound_tracks, fn {peer_id, track_spec} ->
+      # Convert `video` and `audio` fields to strings only for sending
+      updated_spec = %{
+        track_spec
+      | video: track_spec.video && Integer.to_string(track_spec.video),
+        audio: track_spec.audio && Integer.to_string(track_spec.audio)
+      }
+      {peer_id, updated_spec}
+    end)
+  end
+
 end

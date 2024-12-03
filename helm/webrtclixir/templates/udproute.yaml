@@ -1,0 +1,13 @@
+apiVersion: stunner.l7mp.io/v1
+kind: UDPRoute
+metadata:
+  name: {{ include "webrtclixir.fullname" . }}
+  namespace: {{ .Values.stunner.namespace }}
+spec:
+  parentRefs:
+    - name: {{ .Values.stunner.gatewayName }}
+  rules:
+    - backendRefs:
+        - kind: Service
+          name: {{ include "webrtclixir.fullname" . }}
+          namespace: {{ .Release.Namespace }}

@@ -11,7 +11,7 @@ defmodule Webrtclixir.Peer do
     PeerConnection,
     RTPCodecParameters,
     SessionDescription
-    }
+  }
 
   alias Webrtclixir.Room
   alias WebrtclixirWeb.PeerChannel
@@ -20,34 +20,34 @@ defmodule Webrtclixir.Peer do
 
   @type tracks_spec :: %{video: String.t() | nil, audio: String.t() | nil}
   @type outbound_tracks_spec :: %{
-                                  stream: String.t(),
-                                  video: String.t() | nil,
-                                  audio: String.t() | nil,
-                                  transceivers: tracks_spec(),
-                                  subscribed?: boolean()
-                                }
+          stream: String.t(),
+          video: String.t() | nil,
+          audio: String.t() | nil,
+          transceivers: tracks_spec(),
+          subscribed?: boolean()
+        }
   @type peer_tracks_spec :: %{
-                              stream: String.t(),
-                              video: String.t() | nil,
-                              audio: String.t() | nil,
-                              transceivers: tracks_spec(),
-                              pc: pid()
-                            }
+          stream: String.t(),
+          video: String.t() | nil,
+          audio: String.t() | nil,
+          transceivers: tracks_spec(),
+          pc: pid()
+        }
 
   @type state :: %{
-                   id: id(),
-                   channel: pid(),
-                   pc: pid(),
-                   # Tracks streamed from the browser to the peer
-                   inbound_tracks: tracks_spec(),
-                   # Tracks streamed from the peer to the browser
-                   outbound_tracks: %{id() => outbound_tracks_spec()},
-                   # Tracks of other peers which are subscribed to us
-                   # We forward the media received on `inbound_tracks` to these tracks
-                   peer_tracks: %{id() => peer_tracks_spec()},
-                   # Peers that will be added/removed after the current renegotiation completes
-                   pending_peers: MapSet.t(id() | {:removed, id()})
-                 }
+          id: id(),
+          channel: pid(),
+          pc: pid(),
+          # Tracks streamed from the browser to the peer
+          inbound_tracks: tracks_spec(),
+          # Tracks streamed from the peer to the browser
+          outbound_tracks: %{id() => outbound_tracks_spec()},
+          # Tracks of other peers which are subscribed to us
+          # We forward the media received on `inbound_tracks` to these tracks
+          peer_tracks: %{id() => peer_tracks_spec()},
+          # Peers that will be added/removed after the current renegotiation completes
+          pending_peers: MapSet.t(id() | {:removed, id()})
+        }
 
   @audio_codecs [
     %RTPCodecParameters{
@@ -80,6 +80,22 @@ defmodule Webrtclixir.Peer do
   def apply_sdp_answer(id, answer_sdp) do
     GenServer.call(registry_id(id), {:apply_sdp_answer, answer_sdp})
   end
+
+  @spec offer(id()) :: :ok
+  def offer(id) do
+    GenServer.call(registry_id(id), {:offer, nil})
+  end
+
+  @spec device_event(id(), %{id: String, user_id: String, device: String, event: boolean()}) :: :ok
+  def device_event(id, body) do
+    GenServer.call(registry_id(id), {:device_event, body})
+  end
+
+  @spec set_outbound_tracks(id(), %{id: String, user_id: String, device: String, event: boolean()}) :: :ok
+  def set_outbound_tracks(id, payload) do
+    GenServer.call(registry_id(id), {:set_outbound_tracks, payload})
+  end
+
 
   @spec add_ice_candidate(id(), String.t()) :: :ok
   def add_ice_candidate(id, body) do
@@ -140,9 +156,18 @@ defmodule Webrtclixir.Peer do
   end
 
   @impl true
+  def handle_call({:offer, nil}, _from, %{pc: _pc} = state) do
+    Logger.info("Receving offer #{state.id}")
+
+    state = send_offer(state)
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_call({:apply_sdp_answer, answer_sdp}, _from, %{pc: pc} = state) do
     answer = %SessionDescription{type: :answer, sdp: answer_sdp}
-    #Logger.info("Applying SDP answer for #{state.id}:\n#{answer.sdp}")
+    Logger.info("Applying SDP answer for #{state.id}:\n#{answer.sdp}")
 
     state =
       case PeerConnection.set_remote_description(pc, answer) do
@@ -176,6 +201,33 @@ defmodule Webrtclixir.Peer do
   def handle_call({:ok, peer}, _from, _state) do
     Logger.info("unknown messave #{inspect(peer)}")
     {:noreply}
+  end
+
+  @impl true
+  def handle_call({:device_event, body}, _from, %{pc: pc} = state) do
+    state = cond do
+      body["device"] == "video" ->
+        put_in(state.inbound_tracks.video, nil)
+      body["device"] == "audio" ->
+        put_in(state.inbound_tracks.audio, nil)
+    end
+
+    transceivers = PeerConnection.get_transceivers(pc)
+    Logger.info("Transceivers #{inspect(transceivers)}")
+    # trq = Enum.map(transceivers,
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call({:set_outbound_tracks, %{"device" => _device, "event" => _event, "user_id" => user_id} = payload}, _from, %{pc: _pc} = state) do
+    state = put_in(state.outbound_tracks[user_id].video, nil)
+    Logger.info("Setting outbound tracks for #{state.id} to #{inspect(payload)}")
+    Logger.info("State.outbound_tracks #{inspect(state.outbound_tracks)}")
+
+    tracks_for_sending = prepare_outbound_tracks_for_sending(state.outbound_tracks)
+    send(state.channel, tracks_for_sending)
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -220,8 +272,8 @@ defmodule Webrtclixir.Peer do
 
       pending_peers =
         if MapSet.member?(state.pending_peers, peer),
-           do: MapSet.delete(state.pending_peers, peer),
-           else: MapSet.put(state.pending_peers, {:removed, peer})
+          do: MapSet.delete(state.pending_peers, peer),
+          else: MapSet.put(state.pending_peers, {:removed, peer})
 
       {:noreply, %{state | pending_peers: pending_peers}}
     else
@@ -264,9 +316,11 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_info({:ex_webrtc, pc, {:rtp, id, _rid, packet}}, %{pc: pc} = state) do
+    # Logger.info("State.inbound_tracks #{inspect(state.inbound_tracks)}")
     case state.inbound_tracks do
       %{video: ^id} -> broadcast_packet(state.peer_tracks, :video, packet)
       %{audio: ^id} -> broadcast_packet(state.peer_tracks, :audio, packet)
+      _ -> :noop
     end
 
     {:noreply, state}
@@ -291,7 +345,6 @@ defmodule Webrtclixir.Peer do
   @impl true
   def handle_info({:ex_webrtc, pc, {:track, track}}, %{pc: pc} = state) do
     Logger.info("Peer #{state.id} added remote #{track.kind} track #{track.id}")
-
     state = put_in(state.inbound_tracks[track.kind], track.id)
 
     {:noreply, state}
@@ -333,6 +386,8 @@ defmodule Webrtclixir.Peer do
     stream_id = id
     vt = MediaStreamTrack.new(:video, [stream_id])
     at = MediaStreamTrack.new(:audio, [stream_id])
+
+    vt.stream
 
     {:ok, video_tr} = PeerConnection.add_transceiver(pc, :video, direction: :sendonly)
     :ok = PeerConnection.replace_track(pc, video_tr.sender.id, vt)
@@ -383,6 +438,7 @@ defmodule Webrtclixir.Peer do
 
         {peer, %{spec | subscribed?: true}}
       end)
+
     tracks_for_sending = prepare_outbound_tracks_for_sending(outbound_tracks)
     send(state.channel, tracks_for_sending)
     %{state | outbound_tracks: outbound_tracks}
@@ -406,7 +462,7 @@ defmodule Webrtclixir.Peer do
 
   defp send_offer(%{pc: pc} = state) do
     {:ok, offer} = PeerConnection.create_offer(pc)
-    #Logger.info("Sending SDP offer for #{state.id}:\n#{offer.sdp}")
+    # Logger.info("Sending SDP offer for #{state.id}:\n#{offer.sdp}")
 
     :ok = PeerConnection.set_local_description(pc, offer)
     :ok = PeerChannel.send_offer(state.channel, offer.sdp)
@@ -429,11 +485,11 @@ defmodule Webrtclixir.Peer do
       # Convert `video` and `audio` fields to strings only for sending
       updated_spec = %{
         track_spec
-      | video: track_spec.video && Integer.to_string(track_spec.video),
-        audio: track_spec.audio && Integer.to_string(track_spec.audio)
+        | video: track_spec.video && Integer.to_string(track_spec.video),
+          audio: track_spec.audio && Integer.to_string(track_spec.audio)
       }
+
       {peer_id, updated_spec}
     end)
   end
-
 end

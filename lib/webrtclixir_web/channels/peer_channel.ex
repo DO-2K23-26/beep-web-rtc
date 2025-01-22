@@ -5,11 +5,15 @@ defmodule WebrtclixirWeb.PeerChannel do
 
   require Logger
 
+  alias ExWebRTC.PeerConnection
   alias Webrtclixir.{Peer, Room}
   alias WebrtclixirWeb.Presence
 
+  intercept ["device_event"]
+
   @spec send_offer(GenServer.server(), String.t()) :: :ok
   def send_offer(channel, offer) do
+    Logger.info("Sending offer to peer")
     GenServer.cast(channel, {:offer, offer})
   end
 
@@ -49,6 +53,12 @@ defmodule WebrtclixirWeb.PeerChannel do
   end
 
   @impl true
+  def terminate(reason, arg1) do
+    Logger.error("Terminating peer channel: #{inspect(reason)}")
+    :ok
+  end
+
+  @impl true
   def handle_in("sdp_answer", %{"body" => body}, socket) do
     :ok = Peer.apply_sdp_answer(socket.assigns.peer, body)
     {:noreply, socket}
@@ -57,6 +67,7 @@ defmodule WebrtclixirWeb.PeerChannel do
   @impl true
   def handle_in("sdp_offer", %{"body" => _body}, socket) do
     # TODO: renegotiate
+    :ok = Peer.offer(socket.assigns.peer)
     Logger.warning("Ignoring SDP offer sent by peer #{socket.assigns.peer}")
     {:noreply, socket}
   end
@@ -68,7 +79,29 @@ defmodule WebrtclixirWeb.PeerChannel do
   end
 
   @impl true
+  def handle_in("device_event", body, socket) do
+    # Peer.device_event(socket.assigns.peer, body)
+    # broadcast!(socket, "device_event", body)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_out("device_event",%{"device" => _device, "event" => _eveny, "user_id" => user_id} = payload, socket) when user_id != socket.assigns.peer  do
+    pid = self()
+    Logger.info("Receving device_event from #{inspect(pid)} with payload #{inspect(payload)}")
+    Peer.set_outbound_tracks(socket.assigns.peer, payload)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_out(event,payload, socket)  do
+    Logger.info("Catching #{inspect(event)} with payload #{inspect(payload)} doing nothing...")
+
+    {:noreply, socket}
+  end
+  @impl true
   def handle_cast({:offer, sdp_offer}, socket) do
+    Logger.info("Sending last offer to peer")
     push(socket, "sdp_offer", %{"body" => sdp_offer})
     {:noreply, socket}
   end

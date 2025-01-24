@@ -206,18 +206,26 @@ defmodule Webrtclixir.Peer do
 
   @impl true
   def handle_call(
-        {:device_event, %{"device" => device, "event" => _event, "user_id" => _user_id} = _body},
+        {:device_event, %{"device" => device, "event" => event, "user_id" => _user_id} = _body},
         _from,
         %{pc: pc} = state
       ) do
     state =
       cond do
         device == "video" ->
-          new_video_id = state.inbound_tracks.video * -1
+          new_video_id =
+            if event,
+              do: abs(state.inbound_tracks.video),
+              else: state.inbound_tracks.video * -1
+
           put_in(state.inbound_tracks.video, new_video_id)
 
         device == "audio" ->
-          new_audio_id = state.inbound_tracks.audio * -1
+          new_audio_id =
+            if event,
+              do: abs(state.inbound_tracks.audio),
+              else: state.inbound_tracks.audio * -1
+
           put_in(state.inbound_tracks.audio, new_audio_id)
       end
 

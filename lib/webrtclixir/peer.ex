@@ -86,16 +86,17 @@ defmodule Webrtclixir.Peer do
     GenServer.call(registry_id(id), {:offer, nil})
   end
 
-  @spec device_event(id(), %{id: String, device: String, event: boolean(), user_id: String}) :: :ok
+  @spec device_event(id(), %{id: String, device: String, event: boolean(), user_id: String}) ::
+          :ok
   def device_event(id, body) do
     GenServer.call(registry_id(id), {:device_event, body})
   end
 
-  @spec set_outbound_tracks(id(), %{id: String, user_id: String, device: String, event: boolean()}) :: :ok
+  @spec set_outbound_tracks(id(), %{id: String, user_id: String, device: String, event: boolean()}) ::
+          :ok
   def set_outbound_tracks(id, payload) do
     GenServer.call(registry_id(id), {:set_outbound_tracks, payload})
   end
-
 
   @spec add_ice_candidate(id(), String.t()) :: :ok
   def add_ice_candidate(id, body) do
@@ -204,15 +205,22 @@ defmodule Webrtclixir.Peer do
   end
 
   @impl true
-  def handle_call({:device_event, %{"device" => device, "event" => _event, "user_id" => _user_id} = _body}, _from, %{pc: pc} = state) do
-    state = cond do
-      device == "video" ->
-        new_video_id = state.inbound_tracks.video * (-1)
-        put_in(state.inbound_tracks.video, new_video_id)
-      device == "audio" ->
-        new_audio_id = state.inbound_tracks.audio * (-1)
-        put_in(state.inbound_tracks.audio, new_audio_id)
-    end
+  def handle_call(
+        {:device_event, %{"device" => device, "event" => _event, "user_id" => _user_id} = _body},
+        _from,
+        %{pc: pc} = state
+      ) do
+    state =
+      cond do
+        device == "video" ->
+          new_video_id = state.inbound_tracks.video * -1
+          put_in(state.inbound_tracks.video, new_video_id)
+
+        device == "audio" ->
+          new_audio_id = state.inbound_tracks.audio * -1
+          put_in(state.inbound_tracks.audio, new_audio_id)
+      end
+
     Logger.info("State.inbound_tracks #{inspect(state.inbound_tracks)}")
 
     transceivers = PeerConnection.get_transceivers(pc)
@@ -223,15 +231,31 @@ defmodule Webrtclixir.Peer do
   end
 
   @impl true
-  def handle_call({:set_outbound_tracks, %{"device" => device, "event" => _event, "user_id" => user_id} = payload}, _from, %{pc: _pc} = state) do
-    state = cond do
-      device == "video" ->
-        new_video_id = state.outbound_tracks[user_id].video * (-1)
-        put_in(state.outbound_tracks[user_id].video, new_video_id)
-      device == "audio" ->
-        new_audio_id = state.outbound_tracks[user_id].audio * (-1)
-        put_in(state.outbound_tracks[user_id].audio, new_audio_id)
-    end
+  def handle_call(
+        {:set_outbound_tracks,
+         %{"device" => device, "event" => event, "user_id" => user_id} = payload},
+        _from,
+        %{pc: _pc} = state
+      ) do
+    state =
+      cond do
+        device == "video" ->
+          new_video_id =
+            if event,
+              do: abs(state.outbound_tracks[user_id].video),
+              else: state.outbound_tracks[user_id].video * -1
+
+          put_in(state.outbound_tracks[user_id].video, new_video_id)
+
+        device == "audio" ->
+          new_audio_id =
+            if event,
+              do: abs(state.outbound_tracks[user_id].audio),
+              else: state.outbound_tracks[user_id].audio * -1
+
+          put_in(state.outbound_tracks[user_id].audio, new_audio_id)
+      end
+
     Logger.info("Setting outbound tracks for #{state.id} to #{inspect(payload)}")
     Logger.info("State.outbound_tracks #{inspect(state.outbound_tracks)}")
 

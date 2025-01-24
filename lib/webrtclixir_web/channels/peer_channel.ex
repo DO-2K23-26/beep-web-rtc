@@ -80,13 +80,13 @@ defmodule WebrtclixirWeb.PeerChannel do
 
   @impl true
   def handle_in("device_event", body, socket) do
-    # Peer.device_event(socket.assigns.peer, body)
-    # broadcast!(socket, "device_event", body)
+    Peer.device_event(socket.assigns.peer, body)
+    broadcast!(socket, "device_event", body)
     {:noreply, socket}
   end
 
   @impl true
-  def handle_out("device_event",%{"device" => _device, "event" => _eveny, "user_id" => user_id} = payload, socket) when user_id != socket.assigns.peer  do
+  def handle_out("device_event",%{"device" => _device, "event" => _event, "user_id" => user_id} = payload, socket) when user_id != socket.assigns.peer  do
     pid = self()
     Logger.info("Receving device_event from #{inspect(pid)} with payload #{inspect(payload)}")
     Peer.set_outbound_tracks(socket.assigns.peer, payload)

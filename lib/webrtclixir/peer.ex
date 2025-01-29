@@ -98,6 +98,12 @@ defmodule Webrtclixir.Peer do
     GenServer.call(registry_id(id), {:set_outbound_tracks, payload})
   end
 
+#  @spec set_initial_state(id(), %{id: String, video: boolean(), audio: boolean()}) ::
+#          :ok
+#  def set_initial_state(id, payload) do
+#    GenServer.call(registry_id(id), {:set_initial_state, payload})
+#  end
+
   @spec add_ice_candidate(id(), String.t()) :: :ok
   def add_ice_candidate(id, body) do
     GenServer.call(registry_id(id), {:add_ice_candidate, body})
@@ -229,11 +235,7 @@ defmodule Webrtclixir.Peer do
           put_in(state.inbound_tracks.audio, new_audio_id)
       end
 
-    Logger.info("State.inbound_tracks #{inspect(state.inbound_tracks)}")
-
-    transceivers = PeerConnection.get_transceivers(pc)
-    Logger.info("Transceivers #{inspect(transceivers)}")
-    # trq = Enum.map(transceivers,
+    send_update_presence(state)
 
     {:reply, :ok, state}
   end
@@ -267,10 +269,23 @@ defmodule Webrtclixir.Peer do
     Logger.info("Setting outbound tracks for #{state.id} to #{inspect(payload)}")
     Logger.info("State.outbound_tracks #{inspect(state.outbound_tracks)}")
 
-    tracks_for_sending = prepare_outbound_tracks_for_sending(state.outbound_tracks)
-    send(state.channel, tracks_for_sending)
+    send_update_presence(state)
     {:reply, :ok, state}
   end
+#
+#  @impl true
+#  def handle_call(:set_initial_state, %{video: video, audio: audio}, %{pc: pc} = state) do
+#    Logger.info("Setting initial state for #{state.id} to video: #{video}, audio: #{audio}")
+#    if video do
+#      state = put_in(state.inbound_tracks.video, video * -1)
+#    end
+#    if audio do
+#      state = put_in(state.inbound_tracks.audio, audio * -1)
+#    end
+#
+#    send_update_presence(state)
+#    {:reply, :ok, state}
+#  end
 
   @impl true
   def handle_cast(:request_keyframe, %{pc: pc} = state) do
@@ -389,6 +404,9 @@ defmodule Webrtclixir.Peer do
     Logger.info("Peer #{state.id} added remote #{track.kind} track #{track.id}")
     state = put_in(state.inbound_tracks[track.kind], track.id)
 
+    if state.inbound_tracks.video && state.inbound_tracks.audio do
+      send_update_presence(state)
+    end
     {:noreply, state}
   end
 
@@ -479,8 +497,7 @@ defmodule Webrtclixir.Peer do
         {peer, %{spec | subscribed?: true}}
       end)
 
-    tracks_for_sending = prepare_outbound_tracks_for_sending(outbound_tracks)
-    send(state.channel, tracks_for_sending)
+    send_update_presence(state)
     %{state | outbound_tracks: outbound_tracks}
   end
 
@@ -531,5 +548,10 @@ defmodule Webrtclixir.Peer do
 
       {peer_id, updated_spec}
     end)
+  end
+
+  defp send_update_presence(state) do
+    tracks_for_sending = prepare_outbound_tracks_for_sending(state.outbound_tracks)
+    send(state.channel, %{outbound: tracks_for_sending, video: state.inbound_tracks.video, audio: state.inbound_tracks.audio})
   end
 end

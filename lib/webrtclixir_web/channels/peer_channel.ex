@@ -38,16 +38,16 @@ defmodule WebrtclixirWeb.PeerChannel do
     Logger.error("new watcher #{id}}")
     pid = self()
     send(pid, :after_join_watcher)
-    {:ok, assign(socket, peer: id, channel: channel_id)}
+    {:ok, assign(socket, peer: id, channel: channel_id, in: on)}
   end
 
   @impl true
   def join("peer:signalling-" <> channel_id, payload, socket) do
-    Logger.error("Joining #{payload["in"]}")
+    Logger.error("Joining #{inspect(payload)}")
     pid = self()
     send(pid, :after_join)
     case Room.add_peer(pid, payload["id"]) do
-      {:ok, id} -> {:ok, assign(socket, peer: id, channel: channel_id, username: payload["username"])}
+      {:ok, id} -> {:ok, assign(socket, peer: id, channel: channel_id, username: payload["username"], in: payload["in"])}
       {:error, _reason} = error -> error
     end
   end
@@ -86,7 +86,7 @@ defmodule WebrtclixirWeb.PeerChannel do
   end
 
   @impl true
-  def handle_out("device_event",%{"device" => _device, "event" => _event, "user_id" => user_id} = payload, socket) when user_id != socket.assigns.peer  do
+  def handle_out("device_event",%{"device" => _device, "event" => _event, "user_id" => user_id} = payload, socket) when user_id != socket.assigns.peer and socket.assigns.in  do
     pid = self()
     Logger.info("Receving device_event from #{inspect(pid)} with payload #{inspect(payload)}")
     Peer.set_outbound_tracks(socket.assigns.peer, payload)
@@ -131,7 +131,7 @@ defmodule WebrtclixirWeb.PeerChannel do
   @impl true
   def handle_info(track, socket) do
     Logger.warning("adding track to #{socket.assigns.peer}")
-    {:ok, _ref} = Presence.update(socket, socket.assigns.peer, %{user: %{channel: socket.assigns.channel, username: socket.assigns.username, id: socket.assigns.peer, outbounds: track}})
+    {:ok, _ref} = Presence.update(socket, socket.assigns.peer, %{user: %{channel: socket.assigns.channel, username: socket.assigns.username, id: socket.assigns.peer, outbounds: track.outbound, video: track.video, audio: track.audio}})
     push(socket, "presence_state", Presence.list(socket))
     {:noreply, socket}
   end

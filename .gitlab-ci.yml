@@ -2,6 +2,7 @@ stages:
   - build
   - tag
 
+
 variables:
   IMAGE_NAME: ${HARBOR_HOST}/${HARBOR_PROJECT}/${CI_PROJECT_NAME}
 

@@ -1,6 +1,0 @@
-apiVersion: v2
-name: beep-rtc
-description: The Beep RTC application
-type: application
-version: 0.0.0
-appVersion: "1.0.0"

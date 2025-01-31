@@ -1,6 +1,7 @@
 stages:
   - build
   - tag
+  - deploy
 
 
 variables:
@@ -60,3 +61,33 @@ tag:
     - docker push $IMAGE_NAME:$VERSION
   rules:
     - if: $CI_COMMIT_TAG
+
+deploy:
+  image: alpine/git
+  stage: deploy
+  variables:
+    CURRENT_REPO: beep-webrtc
+    SSH_PRIVATE_KEY: ./ssh_key
+    KNOWN_HOSTS: ./known_hosts
+    VALUES: ./charts/${CURRENT_REPO}/${ENVIRONMENT}.yaml
+    REPO: argeepcd
+  tags:
+    - beep-runner
+  before_script:
+    - cat $BEEP_BOT_SSH_PRIVATE_KEY |base64 -d > $SSH_PRIVATE_KEY
+    - chmod 600 $SSH_PRIVATE_KEY
+    - ssh-keyscan gitlab.polytech.umontpellier.fr > $KNOWN_HOSTS
+    - GIT_SSH_COMMAND="ssh -i $SSH_PRIVATE_KEY -o UserKnownHostsFile=$KNOWN_HOSTS" git clone "git@gitlab.polytech.umontpellier.fr:beep/${REPO}.git"
+    - git config --global user.email "beep@bot.com"
+    - git config --global user.name "beep-bot"
+    - wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O yq && chmod +x ./yq
+  script:
+    - cd $REPO
+    - ../yq -i ".image.tag = \"$VERSION\"" $VALUES
+    - git add .
+    - git commit -m "[BUMP] ${CURRENT_REPO}-${ENVIRONMENT} to $VERSION"
+    - GIT_SSH_COMMAND="ssh -i .$SSH_PRIVATE_KEY -o UserKnownHostsFile=.$KNOWN_HOSTS" git push "git@gitlab.polytech.umontpellier.fr:beep/${REPO}.git"
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'

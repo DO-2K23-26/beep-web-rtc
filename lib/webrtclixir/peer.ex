@@ -218,7 +218,7 @@ defmodule Webrtclixir.Peer do
       ) do
     state =
       cond do
-        device == "video" ->
+        device == "video" and not is_nil(state.inbound_tracks.video) ->
           new_video_id =
             if event,
               do: abs(state.inbound_tracks.video),
@@ -226,7 +226,7 @@ defmodule Webrtclixir.Peer do
 
           put_in(state.inbound_tracks.video, new_video_id)
 
-        device == "audio" ->
+        device == "audio" and not is_nil(state.inbound_tracks.audio) ->
           new_audio_id =
             if event,
               do: abs(state.inbound_tracks.audio),

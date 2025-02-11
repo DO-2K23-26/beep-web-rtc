@@ -35,7 +35,6 @@ defmodule Webrtclixir.MixProject do
       {:phoenix, "~> 1.7.14"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:swoosh, "~> 1.5"},
-      {:finch, "~> 0.13"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.20"},
@@ -43,7 +42,8 @@ defmodule Webrtclixir.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:ex_webrtc, "~> 0.6.3"},
-      {:ex_webrtc_dashboard, "~> 0.6.0"}
+      {:ex_webrtc_dashboard, "~> 0.6.0"},
+      {:finch, "~> 0.16"}
     ]
   end
 

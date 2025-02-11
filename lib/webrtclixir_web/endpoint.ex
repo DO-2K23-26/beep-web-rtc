@@ -11,7 +11,7 @@ defmodule WebrtclixirWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  socket "/socket/:channel_id", WebrtclixirWeb.UserSocket,
+  socket "/socket/:server", WebrtclixirWeb.UserSocket,
     check_origin: ["//*.duratm.com", "duratm.com"],
     websocket: true,
     longpoll: false

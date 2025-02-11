@@ -18,7 +18,8 @@ defmodule Webrtclixir.Application do
       WebrtclixirWeb.Presence,
       Webrtclixir.PeerSupervisor,
       Webrtclixir.Room,
-      {Registry, name: Webrtclixir.PeerRegistry, keys: :unique}
+      {Registry, name: Webrtclixir.PeerRegistry, keys: :unique},
+      {Finch, name: WebrtclixirFinch}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

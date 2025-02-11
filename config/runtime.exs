@@ -75,6 +75,16 @@ if config_env() == :prod do
          admin_username: admin_username,
          admin_password: admin_password
 
+  auth_url =
+    System.get_env("AUTH_SERVICE_URL") ||
+      raise """
+      Environment variable AUTH_SERVICE_URL is missing.
+      Please set it to your authentication service URL.
+      """
+
+  config :webrtclixir, :auth,
+         url: auth_url
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key

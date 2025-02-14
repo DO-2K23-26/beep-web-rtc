@@ -1,5 +1,5 @@
 defmodule Webrtclixir.Auth do
-  @auth_url Application.compile_env(:webrtclixir, [:auth, :url])
+  @auth_url Application.get_env(:webrtclixir, :auth)[:url]
   require Logger
 
   def verify_token(params, token) do

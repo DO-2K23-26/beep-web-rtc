@@ -1,5 +1,4 @@
 defmodule Webrtclixir.Auth do
-  @auth_url Application.get_env(:webrtclixir, :auth)[:url]
   require Logger
 
   def verify_token(params, token) do
@@ -7,7 +6,7 @@ defmodule Webrtclixir.Auth do
       {"Authorization", "Bearer #{token}"},
       {"Content-Type", "application/json"}
     ]
-    url = @auth_url <> "/servers/" <> params[:server]
+    url = get_auth_url() <> "/servers/" <> params[:server]
     Logger.info("trying #{inspect(url)}")
 
     Finch.build(:get, url, headers)
@@ -25,5 +24,13 @@ defmodule Webrtclixir.Auth do
 
   defp handle_response(_) do
     {:error, :server_error}
+  end
+
+  defp get_auth_url() do
+    # Access the configuration for Webrtclixir.Auth
+    config = Application.get_env(:webrtclixir, Webrtclixir.Auth)
+
+    # Fetch the `url` key from the configuration
+    Keyword.get(config, :url)
   end
 end

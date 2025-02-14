@@ -29,6 +29,11 @@ read_ice_port_range! = fn ->
   end
 end
 
+if System.get_env("AUTH_SERVICE_URL") do
+  config :webrtclixir, Webrtclixir.Auth,
+         url: System.get_env("AUTH_SERVICE_URL")
+end
+
 if System.get_env("PHX_SERVER") do
   config :webrtclixir, WebrtclixirWeb.Endpoint, server: true
 end
@@ -82,7 +87,7 @@ if config_env() == :prod do
       Please set it to your authentication service URL.
       """
 
-  config :webrtclixir, :auth,
+  config :webrtclixir, Webrtclixir.Auth,
          url: auth_url
 
   # ## SSL Support

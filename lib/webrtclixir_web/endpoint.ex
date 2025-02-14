@@ -12,7 +12,6 @@ defmodule WebrtclixirWeb.Endpoint do
   ]
 
   socket "/socket/:server", WebrtclixirWeb.UserSocket,
-    check_origin: ["//*.duratm.com", "duratm.com"],
     websocket: true,
     longpoll: false
 

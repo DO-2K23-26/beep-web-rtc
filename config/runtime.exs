@@ -29,7 +29,7 @@ read_ice_port_range! = fn ->
   end
 end
 
-if System.get_eng("AUTH_SERVICE_URL") do
+if System.get_env("AUTH_SERVICE_URL") do
   config :webrtclixir, :auth, url: System.get_env("AUTH_SERVICE_URL")
 end
 

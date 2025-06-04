@@ -50,8 +50,8 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: "gitlab.polytech.umontpellier.fr:5050/beep/beep-rtc/webrtclixir:0.0.1"
-          imagePullPolicy: Always
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
           - name: PORT
             value: "8080"

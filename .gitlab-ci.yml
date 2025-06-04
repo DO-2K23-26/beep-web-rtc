@@ -47,7 +47,9 @@ build:
 
 security:
   stage: security
-  image: aquasec/trivy:latest
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: ['']
   script:
     - trivy fs --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --severity CRITICAL,HIGH .
     - trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --severity CRITICAL,HIGH $IMAGE_NAME:${VERSION}

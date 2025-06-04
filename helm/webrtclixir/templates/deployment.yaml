@@ -1,16 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "webrtclixir.fullname" . }}
+  name: webrtclixir
+  namespace: beep-webrtc
   labels:
-    {{- include "webrtclixir.labels" . | nindent 4 }}
+    helm.sh/chart: webrtclixir-0.1.0
+    app.kubernetes.io/name: webrtclixir
+    app.kubernetes.io/instance: webrtclixir
+    app.kubernetes.io/version: "0.0.1"
+    app.kubernetes.io/managed-by: Helm
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "webrtclixir.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: webrtclixir
+      app.kubernetes.io/instance: webrtclixir
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,29 +24,42 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "webrtclixir.labels" . | nindent 8 }}
+        app.kubernetes.io/name: webrtclixir
+        app.kubernetes.io/instance: webrtclixir
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        - name: beep-registry
       serviceAccountName: {{ include "webrtclixir.serviceAccountName" . }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
+          image: "gitlab.polytech.umontpellier.fr:5050/beep/beep-rtc/webrtclixir:0.0.1"
+          imagePullPolicy: Always
           env:
           - name: PORT
-            value: "80"
+            value: "8080"
           - name: SECRET_KEY_BASE
-            value: {{ .Values.env.secretKey }}
+            valueFrom:
+              secretKeyRef:
+                name: webrtclixir-secret
+                key: secret-key-base
           - name: PHX_HOST
             value: {{ .Values.env.phxHost }}
           - name: ADMIN_USERNAME
@@ -57,14 +76,27 @@ spec:
                 fieldPath: status.podIP
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: 8080
               protocol: TCP
           livenessProbe:
-            {{- toYaml .Values.livenessProbe | nindent 12 }}
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
           readinessProbe:
-            {{- toYaml .Values.readinessProbe | nindent 12 }}
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

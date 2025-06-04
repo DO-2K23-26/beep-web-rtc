@@ -30,8 +30,8 @@ security:
     name: aquasec/trivy:latest
     entrypoint: ['']
   script:
-    - trivy fs --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity CRITICAL,HIGH .
-    - trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity CRITICAL,HIGH $IMAGE_NAME:${VERSION}
+    - trivy fs --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,config .
+    - trivy image --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,config $IMAGE_NAME:${VERSION}
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH

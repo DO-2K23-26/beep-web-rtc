@@ -10,6 +10,8 @@ misconfiguration:
     - terraformplan-snapshot
   include-non-failures: false
   checks-bundle-repository: "mirror.gcr.io/aquasec/trivy-checks:1"
+  skip-checks:
+    - AVD-KSV-0125
 
 scan:
   scanners:

@@ -40,6 +40,9 @@ trivy-security:
   image:
     name: aquasec/trivy:latest
     entrypoint: ['']
+  before_script:
+    - mkdir -p ~/.docker
+    - echo "{\"auths\":{\"${HARBOR_HOST}\":{\"auth\":\"$(echo -n ${HARBOR_USERNAME}:${HARBOR_PASSWORD} | base64 -w 0)\"}}}" > ~/.docker/config.json
   script:
     # Scan complet du système de fichiers avec options avancées
     - trivy fs --config trivy.yaml .

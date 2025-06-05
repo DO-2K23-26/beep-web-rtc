@@ -5,6 +5,8 @@ metadata:
   namespace: beep-webrtc
   labels:
     {{- include "webrtclixir.labels" . | nindent 4 }}
+  annotations:
+    trivy.registry/harbor.polytech.umontpellier.fr: "true"
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}

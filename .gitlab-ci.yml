@@ -40,6 +40,8 @@ trivy-security:
   image:
     name: aquasec/trivy:latest
     entrypoint: ['']
+  variables:
+    TRIVY_REGISTRY_TRUSTED: "harbor.polytech.umontpellier.fr"
   script:
     # Scan complet du système de fichiers avec options avancées
     - trivy fs --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,misconfig,license --severity CRITICAL,HIGH,MEDIUM,LOW --skip-dirs "node_modules" --timeout 5m --no-progress .

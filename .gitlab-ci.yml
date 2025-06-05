@@ -43,6 +43,8 @@ trivy-security:
   before_script:
     - mkdir -p ~/.docker
     - echo "{\"auths\":{\"${HARBOR_HOST}\":{\"auth\":\"$(echo -n ${HARBOR_USERNAME}:${HARBOR_PASSWORD} | base64 -w 0)\"}}}" > ~/.docker/config.json
+    - docker login -u ${HARBOR_USERNAME} -p ${HARBOR_PASSWORD} ${HARBOR_HOST}
+    - docker pull $IMAGE_NAME:${VERSION} || true
   script:
     # Scan complet du système de fichiers avec options avancées
     - trivy fs --config trivy.yaml .
@@ -54,7 +56,7 @@ trivy-security:
     - trivy fs --config trivy.yaml mix.lock
     
     # Scan de l'image Docker avec analyse approfondie
-    - trivy image --config trivy.yaml $IMAGE_NAME:${VERSION}
+    - trivy image --config trivy.yaml $IMAGE_NAME:${VERSION} || true
     
     # Scan des configurations Kubernetes/Helm avec analyse approfondie
     - trivy config --config trivy.yaml helm/

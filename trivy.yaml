@@ -12,6 +12,8 @@ misconfiguration:
   checks-bundle-repository: "mirror.gcr.io/aquasec/trivy-checks:1"
   skip-checks:
     - AVD-KSV-0125
+  ignore-checks:
+    - AVD-KSV-0125
 
 scan:
   scanners:
@@ -37,4 +39,6 @@ debug: false
 registry:
   mirrors:
     harbor.polytech.umontpellier.fr:
+      trusted: true
+    registry.beep.ovh:
       trusted: true 

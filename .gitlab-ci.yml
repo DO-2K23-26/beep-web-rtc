@@ -4,7 +4,6 @@ stages:
   - tag
   - deploy
 
-
 variables:
   IMAGE_NAME: ${HARBOR_HOST}/${HARBOR_PROJECT}/${CI_PROJECT_NAME}
 
@@ -23,9 +22,6 @@ workflow:
         VERSION: $CI_COMMIT_TAG
         ENVIRONMENT: production
     - when: always
-
-security:
-  stage: security
 
 horusec-security:
   stage: security
@@ -74,7 +70,6 @@ build:
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       when: manual
-
 
 tag:
   stage: tag

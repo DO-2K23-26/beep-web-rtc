@@ -1,0 +1,38 @@
+misconfiguration:
+  scanners:
+    - azure-arm
+    - cloudformation
+    - dockerfile
+    - helm
+    - kubernetes
+    - terraform
+    - terraformplan-json
+    - terraformplan-snapshot
+  include-non-failures: false
+  checks-bundle-repository: "mirror.gcr.io/aquasec/trivy-checks:1"
+
+scan:
+  scanners:
+    - vuln
+    - secret
+    - misconfig
+    - license
+  skip-dirs:
+    - node_modules
+  parallel: 5
+
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+  - LOW
+
+format: table
+timeout: 5m
+quiet: false
+debug: false
+
+registry:
+  mirrors:
+    harbor.polytech.umontpellier.fr:
+      trusted: true 

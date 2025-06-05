@@ -37,6 +37,8 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          annotations:
+            trivy.registry/harbor.polytech.umontpellier.fr: "true"
           env:
           - name: PORT
             value: "8080"

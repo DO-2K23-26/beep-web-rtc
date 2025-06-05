@@ -41,16 +41,27 @@ trivy-security:
     name: aquasec/trivy:latest
     entrypoint: ['']
   script:
-    # Scan complet du système de fichiers
-    - trivy fs --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,misconfig,license --severity CRITICAL,HIGH,MEDIUM,LOW .
-    # Scan spécifique du Dockerfile
-    - trivy config --format table --exit-code 1 --severity CRITICAL,HIGH,MEDIUM,LOW Dockerfile
-    # Scan des dépendances
-    - trivy fs --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,license --severity CRITICAL,HIGH,MEDIUM,LOW mix.lock
-    # Scan de l'image Docker
-    - trivy image --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,misconfig,license --severity CRITICAL,HIGH,MEDIUM,LOW $IMAGE_NAME:${VERSION}
-    # Scan des configurations Kubernetes/Helm
-    - trivy config --format table --exit-code 1 --severity CRITICAL,HIGH,MEDIUM,LOW helm/
+    # Scan complet du système de fichiers avec options avancées
+    - trivy fs --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,misconfig,license --severity CRITICAL,HIGH,MEDIUM,LOW --skip-dirs "node_modules" --timeout 5m --no-progress .
+    
+    # Scan spécifique du Dockerfile avec analyse approfondie
+    - trivy config --format table --exit-code 1 --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress Dockerfile
+    
+    # Scan des dépendances avec analyse approfondie
+    - trivy fs --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,license --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress mix.lock
+    
+    # Scan de l'image Docker avec analyse approfondie
+    - trivy image --format table --exit-code 1 --ignore-unfixed --scanners vuln,secret,misconfig,license --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress $IMAGE_NAME:${VERSION}
+    
+    # Scan des configurations Kubernetes/Helm avec analyse approfondie
+    - trivy config --format table --exit-code 1 --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress helm/
+    
+    # Scan des fichiers de configuration spécifiques
+    - trivy config --format table --exit-code 1 --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress .gitlab-ci.yml
+    - trivy config --format table --exit-code 1 --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress config/
+    
+    # Scan des secrets et des fichiers sensibles
+    - trivy fs --format table --exit-code 1 --scanners secret --severity CRITICAL,HIGH,MEDIUM,LOW --timeout 5m --no-progress .
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH

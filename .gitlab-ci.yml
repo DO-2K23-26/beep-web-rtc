@@ -25,17 +25,11 @@ workflow:
 
 horusec-security:
   stage: security
-  image: docker:24.0.5
+  image: horuszup/horusec-cli:latest
   variables:
     GIT_DEPTH: 0 # Required when commit authors is enabled
-    DOCKER_TLS_CERTDIR: ''
-  services:
-    - name: docker:24.0.5-dind
-      alias: docker
-  before_script:
-    - docker info
   script:
-    - docker run -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):/src/horusec horuszup/horusec-cli:latest horusec start -p /src/horusec -P $(pwd)
+    - horusec start -p . --disable-docker
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH

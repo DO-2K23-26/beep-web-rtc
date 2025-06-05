@@ -116,30 +116,27 @@ trivy-sbom-scan:
       alias: docker
   variables:
     DOCKER_TLS_CERTDIR: ''
-    # Nom du fichier SBOM Trivy (CycloneDX)
     TRIVY_SBOM_FILE: trivy_cyclonedx.json
   before_script:
     - apk add --no-cache curl
-    # Installer Trivy (version stable)
     - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-    # Authentification Docker pour pouvoir scanner l’image si besoin
     - mkdir -p ~/.docker
-    - echo "{\"auths\":{\"${HARBOR_HOST}\":{\"auth\":\"$(echo -n ${HARBOR_USERNAME}:${HARBOR_PASSWORD} | base64 -w 0)\"}}}" \
-        > ~/.docker/config.json
+    - echo "{\"auths\":{\"${HARBOR_HOST}\":{\"auth\":\"$(echo -n ${HARBOR_USERNAME}:${HARBOR_PASSWORD} | base64 -w 0)\"}}}" > ~/.docker/config.json
     - docker login -u ${HARBOR_USERNAME} -p ${HARBOR_PASSWORD} ${HARBOR_HOST} || true
   script:
-    # 3.1 Générer un SBOM CycloneDX pour le système de fichiers (projet complet)
+    # 1. Génération d’un SBOM CycloneDX pour le projet
     - trivy fs --format cyclonedx --output ${TRIVY_SBOM_FILE} .
-    # 3.2 Scanner ce SBOM pour détecter les vulnérabilités
-    - trivy sbom ${TRIVY_SBOM_FILE} || true
-    # 3.3 (Optionnel) Générer aussi un SBOM SPDX, si besoin
-    # - trivy fs --format spdx-json --output trivy_spdx.json .
-    # - trivy sbom trivy_spdx.json || true
-    # 3.4 (Optionnel) Scanner l’image Docker directement au cas où
-    - if [ -n "$CI_COMMIT_TAG" ] || [ "$CI_COMMIT_REF_NAME" == "$CI_DEFAULT_BRANCH" ]; then
-        trivy image --format cyclonedx --output trivy_image_sbom.json ${IMAGE_NAME}:${VERSION} || true;
-        trivy sbom trivy_image_sbom.json || true;
+
+    # 2. Scan de ce SBOM en ne passant que le scanner "vuln"
+    - trivy sbom --scanners vuln ${TRIVY_SBOM_FILE} || true
+
+    # 3. (Optionnel) Génération + scan SBOM Image si l’image existe
+    - |
+      if [ -n "$CI_COMMIT_TAG" ] || [ "$CI_COMMIT_REF_NAME" == "$CI_DEFAULT_BRANCH" ]; then
+        trivy image --format cyclonedx --output trivy_image_sbom.json ${IMAGE_NAME}:${VERSION} || true
+        trivy sbom --scanners vuln trivy_image_sbom.json || true
       fi
+
   artifacts:
     paths:
       - ${TRIVY_SBOM_FILE}
@@ -149,6 +146,7 @@ trivy-sbom-scan:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+
 
 ##################################
 # Jobs existants (préservés)     #
